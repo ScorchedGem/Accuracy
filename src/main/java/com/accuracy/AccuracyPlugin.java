@@ -1,181 +1,212 @@
 package com.accuracy;
 
-import com.google.gson.*;
 import com.google.inject.Provides;
-import lombok.AccessLevel;
-import lombok.Getter;
 import net.runelite.api.*;
-import net.runelite.api.events.GameStateChanged;
+import net.runelite.api.events.GameTick;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.ui.JagexColors;
-import net.runelite.client.util.ColorUtil;
 
 import javax.inject.Inject;
-import java.io.BufferedReader;
+import javax.swing.*;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.List;
 
 class Beast {
     public String name = "Invalid by any other name would sound as sweet";
-    public int level = -1;
-    public int defense = -1;
-    public int ranged = -1;
-    public int magic = -1;
-    public int attack = -1;
+    public int Defense_level = -1;
+    public int Ranged_level = -1;
+    public int Magic_level = -1;
+    public int Attack_level = -1;
     public int id = -1;
+    public int Strength_level = -1;
 }
 
-@PluginDescriptor(
-        name = "Accuracy",
-        description = "Never tell me the odds",
-        enabledByDefault = true
-)
+class AnswerWorker extends SwingWorker<Void, Integer>
+{
+    public int id;
+    public int savedSpace = 0;
+    public URL lUrl;
+    public String contents;
 
-public class AccuracyPlugin extends Plugin {
-	private static final String CHECK_TARGET = ColorUtil.wrapWithColorTag("Check Target", JagexColors.MENU_TARGET);
+    AnswerWorker(int nId, int sSpot, URL nUrl){ id = nId; savedSpace = sSpot; lUrl = nUrl; }
 
-    @Inject
-    private Client client;
+    protected Void doInBackground() throws Exception {
+        requestNpc();
+        return null;
+    }
 
-    @Inject
-    private AccuracyConfig config;
-
-    @Getter(AccessLevel.PACKAGE)
-    private TileObject interactedTile;
-
-    private Beast beastRef;
-
-    @Override
-    protected void startUp() throws Exception
+    private Void requestNpc()
     {
-        String path = "http://services.runescape.com/m=itemdb_rs/bestiary/beastData.json?beastid=89";
-
-        // Request URL and query for redirects
-        URL url = new URL(path);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("GET");
-        connection.connect();
-
-        connection.setInstanceFollowRedirects(false);
-        System.out.println("Request Url... " + url);
-
-        // Check for redirects
-        int responseCode = connection.getResponseCode();
-        System.out.println("Redirect Url... " + connection.getHeaderField("Location"));
-
-        // Handle redirect
-        if (responseCode == 302 || responseCode == 301){
-            path = connection.getHeaderField("Location");
-            connection = (HttpURLConnection) new URL(path).openConnection();
-            connection.setRequestMethod("GET");
-            connection.connect();
-        }
-
-        // Get JSON file from path
-        InputStream is = new URL(path).openStream();
-        connection.disconnect();
-        String contents = new String(is.readAllBytes());
-        System.out.println(contents);
-
-        Gson gson = new Gson();
-        beastRef = gson.fromJson(contents, Beast.class);
-        System.out.println("Name: " + beastRef.name + " | Level : " + beastRef.level + " | Defense: " + beastRef.defense + " | Attack: " + beastRef.attack + " | Ranged: " + beastRef.ranged + " | Magic: " + beastRef.magic);
-    }
-
-    @Override
-    protected void shutDown() throws Exception
-    {
-    }
-
-    @Subscribe
-    public void onGameStateChanged(GameStateChanged gameStateChanged) throws Exception {
-        if (gameStateChanged.getGameState() == GameState.LOGGED_IN) {
-            client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Never tell me the odds...", null);
-            String path = "http://services.runescape.com/m=itemdb_rs/bestiary/beastData.json?beastid=89";
-            URL url = new URL(path);
-            URLConnection req = url.openConnection();
-            req.connect();
-            beastRef = new GsonBuilder().create().fromJson(new InputStreamReader((InputStream) req.getContent()), Beast.class);
-
-            System.out.print(beastRef.id);
-
-/*            JsonParser jp = new JsonParser();
-            JsonElement root = jp.parse(new InputStreamReader((InputStream) req.getContent()));
-            JsonObject obj = root.getAsJsonObject();
-            int def = obj.get("defense").getAsInt();
-
-            System.out.print(readUrl(path));
-            System.out.print(def);*/
-
-/*            String json = readUrl(path);
-            Gson gson = new Gson();
-            JsonObject obj = new Gson().fromJson(json, JsonObject.class);
-
-            client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", obj.getAsString(), null);*/
-
-            //client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "File Read", null);
-            //client.addChatMessage(ChatMessageType.GAMEMESSAGE, beastRef.name, "Level : " + beastRef.level + " Defense: " + beastRef.defense + " Attack: " + beastRef.attack + " Ranged: " + beastRef.ranged + " Magic: " + beastRef.magic, null);
-        }
-        else if (gameStateChanged.getGameState() == GameState.LOADING) {
-            beastRef = new Beast();
-        }
-    }
-
-    @Subscribe
-	public void onMenuOptionClicked(MenuOptionClicked optionClicked) throws Exception {
-		if (client.getLocalPlayer() == null) return;
-
-		if (optionClicked.getMenuAction() == MenuAction.NPC_SECOND_OPTION)
-		{
-            int id = optionClicked.getId();
-			NPC tempRef = findNpc(id);
-            id = tempRef.getId();
-
-			if (tempRef != null && beastRef.id != id)
-            {
-                String path = "http://services.runescape.com/m=itemdb_rs/bestiary/beastData.json?beastid=" + id;
-                String json = readUrl(path);
-                client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", json, null);
-
-                Gson gson = new Gson();
-                beastRef = gson.fromJson(json, Beast.class);
-                //client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "File Read", null);
-				//client.addChatMessage(ChatMessageType.GAMEMESSAGE, beastRef.name, "Level : " + beastRef.level + " Defense: " + beastRef.defense + " Attack: " + beastRef.attack + " Ranged: " + beastRef.ranged + " Magic: " + beastRef.magic, null);
-			}
-            else
-            {
-				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "No NPC found with value " + id, null);
-			}
-		}
-	}
-
-    private static String readUrl(String urlString) throws Exception {
-        BufferedReader reader = null;
         try {
-            URL url = new URL(urlString);
-            reader = new BufferedReader(new InputStreamReader(url.openStream()));
-            StringBuffer buffer = new StringBuffer();
-            int read;
-            char[] chars = new char[1024];
-            while ((read = reader.read(chars)) != -1)
-                buffer.append(chars, 0, read);
+            InputStream is = lUrl.openStream();
+            contents = new String(is.readAllBytes());
+            return null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+}
 
-            return buffer.toString();
-        } finally {
-            if (reader != null)
-                reader.close();
+
+@PluginDescriptor(name = "Accuracy", description = "Never tell me the odds", enabledByDefault = true)
+public class AccuracyPlugin extends Plugin {
+    static final String URL_START = "https://oldschool.runescape.wiki/api.php?action=ask&query=[[NPC%20ID::";
+    static final String URL_END = "]]%7C%3FAttack%20level%7C%3FStrength%20level%7C%3FDefence%20level%7C%3FMagic%20level%7C%3FRanged%20level&format=json";
+
+    @Inject private Client client;
+    @Inject private AccuracyConfig config;
+
+    private Beast[] beastRefs;
+    private int indexer = 0;
+
+    private List<AnswerWorker> workers;
+
+    @Override
+    protected void startUp() throws Exception {
+        workers = new ArrayList<>();
+        beastRefs = new Beast[config.groupCount()];
+        for (int i = 0; i < config.groupCount(); i++) {
+            beastRefs[i] = new Beast();
+        }
+
+        //constructWorker(3313);
+        //constructWorker(2837);
+        //constructWorker(3295);
+        //constructWorker(3260);
+        //constructWorker(2837);
+        //constructWorker(2830);
+    }
+
+    private void constructWorker(int nId) throws Exception {
+        AnswerWorker worker = new AnswerWorker(nId, indexer, buildUrl(nId));
+        workers.add(worker);
+
+        if (worker.lUrl != null)
+        {
+            // Initialise values for worker
+            worker.execute();
+
+            // Iterate index for next worker request
+            indexer = indexer + 1 >= beastRefs.length ? 0 : indexer;
         }
     }
 
-    NPC findNpc(int id) {
-        return client.getCachedNPCs()[id];
+    @Subscribe public void onGameTick(GameTick tick){
+        for (var worker : workers)
+        {
+            if (worker.isDone()){
+                buildNpcStats(worker.contents , worker.id, worker.savedSpace);
+                workers.remove(worker);
+            }
+        }
+    }
+
+    @Subscribe
+    public void onMenuOptionClicked(MenuOptionClicked optionClicked) throws Exception {
+        if (client.getLocalPlayer() == null) return;
+        if (optionClicked.getMenuAction() == MenuAction.EXAMINE_NPC) {
+            NPC npc = optionClicked.getMenuEntry().getNpc();
+
+            if (npc != null) {
+                NPCComposition nc = npc.getTransformedComposition();
+                constructWorker(nc.getId());
+            }
+        }
+    }
+
+    private void buildNpcStats(String incoming, int id, int index) {
+        String results = incoming.substring(incoming.indexOf("results"));
+
+        try {
+            // NAME
+            int b = results.indexOf("{") + 2; int e = results.indexOf(":", b) - 1;
+            String nameTemp = results.substring(b, e);
+
+            if (nameTemp.contains("#"))
+            { nameTemp = nameTemp.replace("#", " ("); nameTemp += ")"; }
+
+            beastRefs[index].name = nameTemp;
+            beastRefs[index].id = id;
+
+            // ATTACK LEVEL
+            b = results.indexOf("[") + 1; e = results.indexOf("]", b);
+            if (b != -1 && b != e) beastRefs[index].Attack_level = Integer.parseInt(results.substring(b, e));
+            else beastRefs[index].Attack_level = -100;
+
+            // STRENGTH LEVEL
+            b = results.indexOf("[", e) + 1; e = results.indexOf("]", b);
+            if (b != -1 && b != e) beastRefs[index].Strength_level = Integer.parseInt(results.substring(b, e));
+
+            // DEFENSE LEVEL
+            b = results.indexOf("[", e) + 1; e = results.indexOf("]", b);
+            if (b != -1 && b != e) beastRefs[index].Defense_level = Integer.parseInt(results.substring(b, e));
+
+            // MAGIC LEVEL
+            b = results.indexOf("[", e) + 1; e = results.indexOf("]", b);
+            if (b != -1 && b != e) beastRefs[index].Magic_level = Integer.parseInt(results.substring(b, e));
+
+            // RANGED LEVEL
+            b = results.indexOf("[", e) + 1; e = results.indexOf("]", b);
+            if (b != -1 && b != e) beastRefs[index].Ranged_level = Integer.parseInt(results.substring(b, e));
+
+            printStats(index);
+            return;
+        }
+        catch (Exception x) {
+            System.out.println("It broke, at iter " + index + " using source " + results);
+            return;
+        }
+    }
+
+    private URL buildUrl(int id) throws Exception
+    {
+        int storedPos = checkStored(id);
+        if (storedPos == -1)
+        {
+            // Reserve the position for thread
+            beastRefs[indexer].id = id;
+
+            // Generate json link
+            return new URL(URL_START + id + URL_END);
+        }
+        else
+        {
+            // Print out our locally stored version
+            printStats(storedPos);
+            return null;
+        }
+    }
+
+    public void printStats(int pos)
+    {
+        String stats = "";
+        if (beastRefs[pos].Attack_level > -100)
+        {
+            stats = beastRefs[pos].name +
+                    " | Strength: " + beastRefs[pos].Strength_level +
+                    " | Defense: " + beastRefs[pos].Defense_level +
+                    " | Attack: " + beastRefs[pos].Attack_level +
+                    " | Ranged: " + beastRefs[pos].Ranged_level +
+                    " | Magic: " + beastRefs[pos].Magic_level;
+        }
+        else
+        {
+            stats = beastRefs[pos].name + " | Description: Would prefer if you didn't check their stats";
+        }
+
+        if (client.getLocalPlayer() != null) client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", stats, null);
+    }
+
+    private int checkStored(int newId)
+    {
+        for (int i = 0; i < beastRefs.length; i++)
+        { if (beastRefs[i].id == newId) return i; }
+        return -1;
     }
 
     @Provides

@@ -8,12 +8,9 @@ import net.runelite.client.config.ConfigItem;
 public interface AccuracyConfig extends Config
 {
 	@ConfigItem(
-		keyName = "greeting",
-		name = "Welcome Greeting",
-		description = "The message to show to the user when they login"
+			keyName = "groupCount",
+			name = "Remember for me",
+			description = "The amount of id's you store locally per session for reuse later. (Saves FPS, Costs RAM) [Requires Plugin Restart]"
 	)
-	default String greeting()
-	{
-		return "Hello";
-	}
+	default int groupCount() { return 5; }
 }
